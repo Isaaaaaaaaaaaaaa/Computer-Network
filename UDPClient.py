@@ -45,14 +45,26 @@ while True:
             break
         #向Server端发送文件
         elif type == "s":
+            #创建socket
+            clientSocket = socket(AF_INET,SOCK_DGRAM)
+            #模拟建立TCP连接
+            while True:
+                print("Trying to establish connection")
+                clientSocket.sendto("SYN".encode(),(serverName,serverPort))
+                ack = clientSocket.recv(1024)
+                if ack == b"ACK":
+                    print("Received ack from server,sending ack ...")
+                    clientSocket.sendto("ACK".encode(),(serverName,serverPort))
+                    print("Connection established")
+                    break
+                else:
+                    print("Connection failed")
             #输入文件名
             fileName = input("Please input file name :")
             #判断文件是否存在
             if os.path.exists(fileName):
                 #打开文件
                 file = open(fileName,"rb")
-                #创建socket
-                clientSocket = socket(AF_INET,SOCK_DGRAM)
                 #分块读取和发送整个文件
                 while True:
                     data = file.read(1024)
@@ -61,6 +73,14 @@ while True:
                     clientSocket.sendto(data, (serverName, serverPort))
                 #关闭文件
                 file.close()
+                #模拟释放TCP连接
+                while True:
+                    print("Trying to release connection")
+                    clientSocket.sendto("FIN".encode(),(serverName,serverPort))
+                    ack = clientSocket.recv(1024)
+                    if ack == b"ACK":
+                        print("Connection released")
+                        break
                 #关闭socket
                 clientSocket.close()
             else:
@@ -74,7 +94,7 @@ while True:
             #接收文件
             while True:
                 data,addr = clientSocket.recvfrom(1024)
-                if not data:
+                if data == b"FIN":
                     break
                 file.write(data)
             #关闭文件

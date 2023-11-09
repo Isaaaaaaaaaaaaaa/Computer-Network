@@ -45,13 +45,30 @@ while True:
             else:
                 print("File does not exist!")
         elif type == "r":
+            #模拟建立TCP连接
+            while True:
+                print("Trying to establish connection")
+                syn = serverSocket.recvfrom(1024)
+                clientName, clientPort = syn[1]
+                if syn[0] == b"SYN":
+                    print("The server received syn from client,sending ack ...")
+                    serverSocket.sendto("ACK".encode(), (clientName,clientPort))
+                    while True:
+                        ack = serverSocket.recv(1024)
+                        if ack == b"ACK":
+                            print("Connection established")
+                            break
+                    break
             #创建文件
             fileName = input("Please input file name :")
             file = open(fileName,"wb")
             #接收文件
             while True:
                 data,addr = serverSocket.recvfrom(1024)
-                if not data:
+                clientName,clientPort=addr
+                if data == b"FIN":
+                    print("File received!")
+                    serverSocket.sendto("ACK".encode(), (clientName,clientPort))
                     break
                 file.write(data)
             #关闭文件
