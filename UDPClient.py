@@ -37,69 +37,115 @@ while True:
         else:
             print("Please input a valid IP!")
 
+    #创建socket
+    clientSocket = socket(AF_INET,SOCK_DGRAM)
+    
+    #模拟建立TCP连接,三次握手
+    while True:
+        print("Trying to establish connection ...")
+        clientSocket.sendto("SYN".encode(),(serverName,serverPort))
+        ack = clientSocket.recv(1024)
+        if ack == b"ACK":
+            #print("Received ack from server,sending ack ...")
+            clientSocket.sendto("ACK".encode(),(serverName,serverPort))
+            print(f"Connection established to server, IP: {serverName}, Port Number: {serverPort}")
+            break
+        else:
+            print("Connection failed")
+    
     #开始传输文件
     while True:
         #输入传输类型
-        type = input("Please input transfer type:s/r(send or receive),input q to quit :")
+        type = input("Please input transfer type: s/r(send or receive), input q to quit :")
+        
+        #判断传输类型是否合法
+        if type != "s" and type != "r" and type != "q":
+            print("Please input a valid transfer type!")
+            continue
+        
+        #向服务器端发送传输类型
+        clientSocket.sendto(type.encode(),(serverName,serverPort))
+        
+        #接收ACK
+        while True:
+            ack = clientSocket.recv(1024)
+            if ack == b"ACK":
+                print("The server gets ready")
+                break
+        
         if type == "q":
-            break
-        #向Server端发送文件
-        elif type == "s":
-            #创建socket
-            clientSocket = socket(AF_INET,SOCK_DGRAM)
-            #模拟建立TCP连接
+            #模拟释放TCP连接
             while True:
-                print("Trying to establish connection")
-                clientSocket.sendto("SYN".encode(),(serverName,serverPort))
+                print("Trying to release connection ...")
+                clientSocket.sendto("FIN".encode(),(serverName,serverPort))
                 ack = clientSocket.recv(1024)
                 if ack == b"ACK":
-                    print("Received ack from server,sending ack ...")
-                    clientSocket.sendto("ACK".encode(),(serverName,serverPort))
-                    print("Connection established")
+                    #print("Received ack from server")
+                    break
+            #接收FIN
+            while True:
+                fin = clientSocket.recv(1024)
+                if fin == b"FIN":
+                    #print("Received fin from server,sending ack ...")
+                    break
+            #发送ACK
+            clientSocket.sendto("ACK".encode(),(serverName,serverPort))
+            #关闭socket
+            clientSocket.close()
+            print("Connection released")
+            break
+        
+        #向Server端发送文件
+        elif type == "s":
+            while True:
+                #输入文件名
+                fileName = input("Please input file name :")
+                #判断文件是否存在
+                if os.path.exists(fileName):
+                    #处理文件名
+                    filePath = fileName.split('/')
+                    #发送文件名
+                    clientSocket.sendto(filePath[len(filePath)-1].encode(),(serverName,serverPort))
+                    #接收ACK
+                    while True:
+                        ack = clientSocket.recv(1024)
+                        if ack == b"ACK":
+                            #print("Received ack from server,ready to send file  ...")
+                            break
+                    #打开文件
+                    file = open(fileName,"rb")
+                    #分块读取和发送整个文件
+                    while True:
+                        data = file.read(1024)
+                        if not data:
+                            clientSocket.sendto("ACK".encode(), (serverName, serverPort))
+                            print("File sent!")
+                            break
+                        clientSocket.sendto(data, (serverName, serverPort))
+                    #关闭文件
+                    file.close()
                     break
                 else:
-                    print("Connection failed")
-            #输入文件名
-            fileName = input("Please input file name :")
-            #判断文件是否存在
-            if os.path.exists(fileName):
-                #打开文件
-                file = open(fileName,"rb")
-                #分块读取和发送整个文件
-                while True:
-                    data = file.read(1024)
-                    if not data:
-                        break
-                    clientSocket.sendto(data, (serverName, serverPort))
-                #关闭文件
-                file.close()
-                #模拟释放TCP连接
-                while True:
-                    print("Trying to release connection")
-                    clientSocket.sendto("FIN".encode(),(serverName,serverPort))
-                    ack = clientSocket.recv(1024)
-                    if ack == b"ACK":
-                        print("Connection released")
-                        break
-                #关闭socket
-                clientSocket.close()
-            else:
-                print("File does not exist!")
+                    print("File does not exist!")
         elif type == "r":
-            #创建socket
-            clientSocket = socket(AF_INET,SOCK_DGRAM)
-            #创建文件
-            fileName = input("Please input file name :")
+            #指定接收文件名并发送至服务器端
+            while True:
+                fileName = input("Please input file name :")
+                clientSocket.sendto(fileName.encode(),(serverName,serverPort))
+                #接收服务器端返回结果
+                ack = clientSocket.recv(1024)
+                if ack == b"ACK":
+                    #print("Received ack from server,ready to receive file ...")
+                    break
+                else:
+                    print("File does not exist!")
             file = open(fileName,"wb")
             #接收文件
             while True:
                 data,addr = clientSocket.recvfrom(1024)
-                if data == b"FIN":
+                if data == b"ACK":
+                    print("File received!")
                     break
                 file.write(data)
             #关闭文件
             file.close()
-            #关闭socket
-            clientSocket.close()
-            
-    
