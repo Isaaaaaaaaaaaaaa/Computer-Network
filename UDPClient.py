@@ -1,5 +1,8 @@
 import os
+import select
 from socket import *
+
+timeout = 5
 
 #判断ip是否合法
 def isValidIp(ip):
@@ -39,19 +42,35 @@ while True:
 
     #创建socket
     clientSocket = socket(AF_INET,SOCK_DGRAM)
+    print("Trying to establish connection ...")
+    
+    #判断是否建立连接
+    connectionEstablish = False
+    #记录超时重传次数
+    cnt = 0
     
     #模拟建立TCP连接,三次握手
     while True:
-        print("Trying to establish connection ...")
         clientSocket.sendto("SYN".encode(),(serverName,serverPort))
-        ack = clientSocket.recv(1024)
-        if ack == b"ACK":
-            #print("Received ack from server,sending ack ...")
-            clientSocket.sendto("ACK".encode(),(serverName,serverPort))
-            print(f"Connection established to server, IP: {serverName}, Port Number: {serverPort}")
+        ready = select.select([clientSocket],[],[],timeout)
+        #引入超时重传机制
+        if ready[0]:
+            ack = clientSocket.recv(1024)
+            if ack == b"ACK":
+                #print("Received ack from server,sending ack ...")
+                clientSocket.sendto("ACK".encode(),(serverName,serverPort))
+                print(f"Connection established to server, IP: {serverName}, Port Number: {serverPort}")
+                connectionEstablish = True
+                break
+        elif cnt>2:
             break
         else:
-            print("Connection failed")
+            cnt += 1
+            print(f"Timeout, trying again ... times = {cnt}")
+    
+    if not connectionEstablish:
+        print("Connection failed, please try again!")
+        continue
     
     #开始传输文件
     while True:
@@ -70,7 +89,7 @@ while True:
         while True:
             ack = clientSocket.recv(1024)
             if ack == b"ACK":
-                print("The server gets ready")
+                #print("The server gets ready")
                 break
         
         if type == "q":
